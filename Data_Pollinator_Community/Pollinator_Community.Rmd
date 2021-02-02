@@ -1,0 +1,62 @@
+---
+title: "Estimate Proportion of High-Mobility Hummingbirds"
+output: html_notebook
+---
+
+# 0. Load Packages
+
+```{r include=FALSE}
+library(dplyr)
+```
+
+# 1. Load Data
+
+```{r}
+data <- read.csv("Hummingbird_Data.csv", header = TRUE, fileEncoding = "UTF-8-BOM")
+```
+
+# 2. Estimate Proportion of High-Mobilty Hummingbirds
+
+```{r}
+# Total number of hummingbird captures per patch
+data <- dplyr::mutate(data, Total_Hummingbirds = VISA + GREH + LBIH + CHRH + GCBR + RTAH + SBRH + SNOB + STHR)
+
+# Total number of hummingbird captures per patch corrected for small sample size
+data <- dplyr::mutate(data, Total_Hummingbirds_Correction = Total_Hummingbirds + 4)
+
+# Total number of high-mobility hummingbirds per patch
+data <- dplyr::mutate(data, High_Mobility_Hummingbirds = VISA + GREH + LBIH)
+
+# Total number of high-mobility hummingbirds per patch corrected for small sample size
+data <- dplyr::mutate(data, High_Mobility_Hummingbirds_Correction = High_Mobility_Hummingbirds + 2)
+
+# Proportion of High-Mobility Hummingbirds
+data <- dplyr::mutate(data, Proportion_High_Mobility = High_Mobility_Hummingbirds / Total_Hummingbirds)
+
+# Proportion of High-Mobility Hummingbirds (Small-Sample Correction)
+data <- dplyr::mutate(data, Proportion_High_Mobility_Correction = High_Mobility_Hummingbirds_Correction / Total_Hummingbirds_Correction)
+```
+
+# 3. Estimate Standard Errors of Proportion of High-Mobility Hummingbirds
+
+```{r}
+data <- dplyr::mutate(data, SE_High_Mobility = sqrt(Proportion_High_Mobility * (1 - Proportion_High_Mobility) / Total_Hummingbirds_Correction))
+```
+
+# 4. Export Results
+
+```{r}
+write.csv(data, "Proportion_High_Mobility_Pollinators.csv", row.names = FALSE)
+```
+
+# 5. Correlation Among Hummingbird Captures and Proportion High-Mobility Hummingbirds
+
+```{r}
+# Total number of captures
+cor.test(data$Total_Hummingbirds, data$Proportion_High_Mobility, method = "pearson")
+```
+
+```{r}
+# Total number of high-mobility hummingbird captues
+cor.test(data$High_Mobility_Hummingbirds, data$Proportion_High_Mobility, method = "pearson")
+```

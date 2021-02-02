@@ -1,0 +1,86 @@
+---
+title: "Estimate Haplotype Diversity (h) of Pollen Pools"
+output: html_notebook
+---
+
+# 0. Load Packages
+
+```{r include=FALSE}
+library(gstudio)
+library(boot)
+library(dplyr)
+```
+
+# 1. Load Data
+
+```{r}
+data <- gstudio::read_population("Genotypes.csv", type = "separated", locus.columns = 6:16, header = TRUE, fileEncoding = "UTF-8-BOM")
+```
+
+# 2. Subtract Maternal Contribution
+
+```{r include=FALSE}
+pollen <- gstudio::minus_mom(data, MomCol = "ID", OffCol = "OffID")
+```
+
+## 2.2. Split Pollen Pools
+
+```{r}
+# Pollen pools per mom
+pollen_moms <- pollen %>% split(pollen$ID)
+
+# Pollen pools per patch
+pollen_patches <- pollen %>% split(pollen$Pop)
+```
+
+# 3. Function to Estimate Haplotype Diversity (h) of Pollen Pools
+
+```{r}
+get_HD <- function(df)
+{
+  sum_allele_freq_sq <- gstudio::frequencies(df) %>% 
+    group_by(Locus) %>% 
+    summarise(Sum_Frequency_Sq = sum(Frequency^2)) %>% 
+    ungroup()
+  mean(1 - sum_allele_freq_sq$Sum_Frequency_Sq, na.rm = TRUE)
+}
+```
+
+# 4. Function to Calculate Bootstrap
+
+```{r}
+bootstrap_HD <- function(dataframe, indicies)
+{
+  d <- dataframe[indicies,]
+  return(get_HD(d))
+}
+```
+
+# 5. Estimate Haplotype Diversity (h) of Pollen Pools
+
+```{r include=FALSE}
+haplotype_diversity_pollen_moms <- data.frame(Mom_ID = names(pollen_moms),
+                                              Pop = substr(names(pollen_moms),1 ,2),
+                                              n_Seeds = unlist(lapply(pollen_moms, nrow)),
+                                              h_Pollen_Pool = rep(NA, length(pollen_moms)),
+                                              Bootstrap_SE = rep(NA, length(pollen_moms)),
+                                              Year = substr(names(pollen_moms),5 ,8))
+
+for(i in 1:length(pollen_moms))
+{
+  tmp_moms = {}
+  try(tmp_moms <- boot(pollen_moms[[i]], bootstrap_HD, R = 1000))
+  if(length(tmp_moms) > 0)
+  {
+    haplotype_diversity_pollen_moms[i,4] <- tmp_moms$t0
+    haplotype_diversity_pollen_moms[i,5] <- sd(tmp_moms$t, na.rm = TRUE)
+  }
+  cat(i, "\n")
+}
+```
+
+# 6. Export Results
+
+```{r}
+write.csv(haplotype_diversity_pollen_moms, file = "Haplotype_Diversity_Pollen_Moms.csv", row.names = FALSE)
+```

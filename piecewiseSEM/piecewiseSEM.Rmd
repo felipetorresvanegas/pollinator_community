@@ -1,0 +1,185 @@
+---
+title: "piecewise SEM"
+output:
+  html_document:
+    df_print: paged
+---
+
+# 0. Load Packages
+
+```{r include=FALSE}
+library(dplyr)
+library(piecewiseSEM)
+library(nlme)
+library(lme4)
+```
+
+# 1. Load Data
+
+```{r}
+## Mom-level
+data_moms_hummingbirds <- read.csv("Data_Moms.csv", header = TRUE, fileEncoding = "UTF-8-BOM")
+
+### Add dummy variable for year
+data_moms_hummingbirds$Year_Code <- ifelse(data_moms_hummingbirds$Year == 2013, 0, 1)
+
+### Subset mom-level data to patches with hummingbird captures
+data_moms_hummingbirds <- dplyr::filter(data_moms_hummingbirds, Pop %in% c(10, 16, 19, 32, 33, 35, 40, 49, 50, 56, 58, 60, 63))
+
+## Patch-level
+data_patches_hummingbirds <- read.csv("Data_Patches.csv", header = TRUE, fileEncoding = "UTF-8-BOM")
+
+### Subset patch-level data to patches with hummingbird captures
+data_patches_hummingbirds <- dplyr::filter(data_patches_hummingbirds, Pop %in% c(10, 16, 19, 32, 33, 35, 40, 49, 50, 56, 58, 60, 63))
+```
+
+## 1.1. Add Spatial Coordinates for Maternal Plants
+
+```{r}
+### Moms locations
+data_moms_locations <- read.csv("Data_Moms_Locations.csv", header = TRUE)
+
+### Add locations for each mom
+data_moms_hummingbirds <- left_join(data_moms_hummingbirds,
+                                    data_moms_locations %>% 
+                                      select(MomID, X, Y),
+                                    by = c("Mom_ID" = "MomID"))
+```
+
+## 1.2. Transform Variables
+
+```{r}
+# Patch-level data
+data_patches_hummingbirds <- dplyr::mutate(data_patches_hummingbirds, log_Area_ha = log(Area_ha))
+
+data_patches_hummingbirds <- dplyr::mutate(data_patches_hummingbirds, Proportion_Forest = Percent_Forest / 100)
+
+data_patches_hummingbirds <- dplyr::mutate(data_patches_hummingbirds, asin_sqrt_Proportion_High_Mobility = asin(sqrt(Proportion_High_Mobility)))
+
+# Mom-level data
+data_moms_hummingbirds <- dplyr::mutate(data_moms_hummingbirds, asin_sqrt_h_Pollen_Pool = asin(sqrt(h_Pollen_Pool)))
+
+data_moms_hummingbirds <- dplyr::mutate(data_moms_hummingbirds, asin_sqrt_Outcrossing = asin(sqrt(Outcrossing)))
+
+data_moms_hummingbirds <- dplyr::mutate(data_moms_hummingbirds, log_Area_ha = log(Area_ha))
+
+data_moms_hummingbirds <- dplyr::mutate(data_moms_hummingbirds, Proportion_Forest = Percent_Forest / 100)
+
+data_moms_hummingbirds <- dplyr::mutate(data_moms_hummingbirds, asin_sqrt_Proportion_High_Mobility = asin(sqrt(Proportion_High_Mobility)))
+```
+
+# 2. Path Analysis with piecewise SEM
+
+## 2.1. Haplotype Diveristy (h) of Pollen Pools
+
+### 2.1.1. Proportion of Forest
+
+```{r}
+# Direct effect
+psem_pollen_forest_direct <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ Proportion_Forest, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_h_Pollen_Pool ~ asin_sqrt_Proportion_High_Mobility + Proportion_Forest + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_pollen_forest_direct <- summary(psem_pollen_forest_direct, .progressBar = FALSE)
+
+# Indirect effect
+psem_pollen_forest_indirect <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ Proportion_Forest, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_h_Pollen_Pool ~ asin_sqrt_Proportion_High_Mobility + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_pollen_forest_indirect <- summary(psem_pollen_forest_indirect, .progressBar = FALSE)
+```
+
+### 2.1.2. Patch Size
+
+```{r}
+# Direct effect
+psem_pollen_size_direct <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ log_Area_ha, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_h_Pollen_Pool ~ asin_sqrt_Proportion_High_Mobility + log_Area_ha + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_pollen_size_direct <- summary(psem_pollen_size_direct, .progressBar = FALSE)
+
+# Indirect effect
+psem_pollen_size_indirect <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ log_Area_ha, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_h_Pollen_Pool ~ asin_sqrt_Proportion_High_Mobility + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_pollen_size_indirect <- summary(psem_pollen_size_indirect, .progressBar = FALSE)
+```
+
+## 2.2. Outcrossing Rates
+
+### 2.2.1. Proportion of Forest
+
+```{r}
+# Direct effect
+psem_outcrossing_forest_direct <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ Proportion_Forest, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_Outcrossing ~ asin_sqrt_Proportion_High_Mobility + Proportion_Forest + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_outcrossing_forest_direct <- summary(psem_outcrossing_forest_direct, .progressBar = FALSE)
+
+# Indirect effect
+psem_outcrossing_forest_indirect <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ Proportion_Forest, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_Outcrossing ~ asin_sqrt_Proportion_High_Mobility + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_outcrossing_forest_indirect <- summary(psem_outcrossing_forest_indirect, .progressBar = FALSE)
+```
+
+### 2.2.2. Patch Size
+
+```{r}
+# Direct effect
+psem_outcrossing_size_direct <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ log_Area_ha, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_Outcrossing ~ asin_sqrt_Proportion_High_Mobility + log_Area_ha + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_outcrossing_size_direct <- summary(psem_outcrossing_size_direct, .progressBar = FALSE)
+
+# Indirect effect
+psem_outcrossing_size_indirect <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ log_Area_ha, data = data_patches_hummingbirds),
+  nlme::lme(asin_sqrt_Outcrossing ~ asin_sqrt_Proportion_High_Mobility + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_outcrossing_size_indirect <- summary(psem_outcrossing_size_indirect, .progressBar = FALSE)
+```
+
+## 2.3. Biparental Inbreeding
+
+### 2.3.1. Proportion of Forest
+
+```{r}
+# Direct effect
+psem_biparental_forest_direct <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ Proportion_Forest, data = data_patches_hummingbirds),
+  nlme::lme(Biparental_Inbreeding ~ asin_sqrt_Proportion_High_Mobility + Proportion_Forest + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_biparental_forest_direct <- summary(psem_biparental_forest_direct, .progressBar = FALSE)
+
+# Indirect effect
+psem_biparental_forest_indirect <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ Proportion_Forest, data = data_patches_hummingbirds),
+  nlme::lme(Biparental_Inbreeding ~ asin_sqrt_Proportion_High_Mobility + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_biparental_forest_indirect <- summary(psem_biparental_forest_indirect, .progressBar = FALSE)
+```
+
+### 2.3.2. Patch Size
+
+```{r}
+# Direct effect
+psem_biparental_size_direct <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ log_Area_ha, data = data_patches_hummingbirds),
+  nlme::lme(Biparental_Inbreeding ~ asin_sqrt_Proportion_High_Mobility + log_Area_ha + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_biparental_size_direct <- summary(psem_biparental_size_direct, .progressBar = FALSE)
+
+# Indirect effect
+psem_biparental_size_indirect <- piecewiseSEM::psem(
+  lm(asin_sqrt_Proportion_High_Mobility ~ log_Area_ha, data = data_patches_hummingbirds),
+  nlme::lme(Biparental_Inbreeding ~ asin_sqrt_Proportion_High_Mobility + Year_Code, random = ~ 1 | Pop, data = data_moms_hummingbirds))
+
+results_psem_biparental_size_indirect <- summary(psem_biparental_size_indirect, .progressBar = FALSE)
+```
